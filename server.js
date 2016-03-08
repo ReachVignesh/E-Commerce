@@ -4,45 +4,49 @@ var mongoose = require('mongoose');
 var bodyParser = require('body-parser');
 var ejs = require('ejs');
 var engine = require('ejs-mate');
+var session = require('express-session');
+var cookieparser = require('cookie-parser');
+var flash = require('express-flash');
+var MongoStore = require('connect-mongo/es5')(session);
+var passport = require('passport');
 
+var secret = require('./config/secret');
 var User = require('./models/user');
 var app = express();
 
-mongoose.connect('mongodb://root:viki123@ds019668.mlab.com:19668/ecommerce', function(err) {
+mongoose.connect(secret.database, function(err) {
   if(err) {
     console.log(err);
     } else {
       console.log("Connected to the database");
     }
 });
+
+app.use(express.static(__dirname + '/public'));
 app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
+app.use(cookieparser());
+app.use(session({
+  resave: true,
+  saveUninitialized: true,
+  secret: secret.secretKey,
+  store: new MongoStore({url: secret.database ,autoReconnect: true})
+}));
+app.use(flash());
+app.use(passport.initialize());
+app.use(passport.session());
+
 app.engine('ejs', engine);
 app.set('view engine', 'ejs');
 
-app.post('/create-user', function(req, res, next){
-  var user = new User();
+var mainRoutes = require('./routes/main');
+var userRoutes = require('./routes/user');
 
-  user.profile.name = req.body.name;
-  user.password = req.body.password;
-  user.email = req.body.email;
+app.use(mainRoutes);
+app.use(userRoutes);
 
-  user.save(function(err){
-    if (err) return next(err);
-    res.json('Successfully created a new user');
-  });
-});
-
-app.get('/', function(req, res){
-  res.render('main/home');
-});
-
-app.get('/about', function(req,res){
-  res.render('main/about');
-});
-
-app.listen(3000, function(err) {
+app.listen(secret.port, function(err) {
  if (err) throw err;
- console.log("Server is Running on port 3000");
+ console.log("Server is Running on port " + secret.port);
 });
